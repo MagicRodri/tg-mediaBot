@@ -13,6 +13,7 @@ import pydub
 from cloudinary.uploader import upload
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
+from translate import Translator
 
 from db import audios, images, users
 from utils import get_media_current_index
@@ -21,10 +22,16 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO)
 
+translator = Translator(to_lang="en")
+
+
+def _(text):
+    return translator.translate(text)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    start_message = """\tHello! I'm a bot that can:
+    start_message = """Hello! I'm a bot that can:
     - Save audio files in .wav format.
     - Save photos with faces.
     - Return back your saved audio files and photos.
@@ -41,8 +48,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
 
     keyboad = [
-        [InlineKeyboardButton("I agree", callback_data="True")],
-        [InlineKeyboardButton("I do not agree", callback_data="False")],
+        [InlineKeyboardButton(_("I agree"), callback_data="True")],
+        [InlineKeyboardButton(_("I do not agree"), callback_data="False")],
     ]
     keyboad_markup = InlineKeyboardMarkup(keyboad)
 
@@ -65,11 +72,11 @@ async def agreement(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = """
         Thank you for agreeing to our privacy policy.
         You can now send me audio files and photos with faces.
-        Use /help to see the list of commands.
+        Use /help to see the list of commands you can use.
         """
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=text,
+            text=_(text),
         )
         username = query.from_user.username
         user_id = query.from_user.id
@@ -89,8 +96,47 @@ async def agreement(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
             # no yapf: enable
     elif query.data == "False":
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="Sorry, you can't use this bot.")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=_("Sorry, you can't use this bot."))
+
+
+async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Translate the bot's messages to the user's language.
+    """
+
+    language_keyboad = [
+        [InlineKeyboardButton(_("English"), callback_data="en")],
+        [InlineKeyboardButton(_("Russian"), callback_data="ru")],
+        [InlineKeyboardButton(_("French"), callback_data="fr")],
+    ]
+
+    language_keyboad_markup = InlineKeyboardMarkup(language_keyboad)
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=_("Choose your language:"),
+        reply_markup=language_keyboad_markup,
+    )
+
+
+async def language_choice_callback(update: Update,
+                                   context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the user's choice of language.
+    """
+    global translator
+    query = update.callback_query
+    await query.answer()
+    language = query.data
+    if len(language) != 2:
+        return
+    translator = Translator(to_lang=language)
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=_("Your language is set!"),
+    )
 
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -151,10 +197,11 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # no yapf: enable
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="I found a face and saved the image.")
+            text=_("I found a face and saved the image."))
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="Sorry, I didn't find any face.")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=_("Sorry, I didn't find any face."))
 
 
 async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,7 +255,7 @@ async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # no yapf: enable
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="I received an audio file and saved it.")
+        text=_("I received an audio file and saved it."))
 
 
 async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -223,7 +270,8 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except IndexError:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="You should specify one media type after the /get command.")
+            text=_(
+                "You should specify one media type after the /get command."))
         return
 
     if media_type.strip().lower() in ['photos', 'images']:
@@ -233,17 +281,17 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Sorry, I don't know this media type.")
+            text=_("Sorry, I don't know this media type."))
         return
 
     medias = media_collection.find({"sender": username}, {
         "_id": False,
         "cloud_path": True
     })
-    if list(medias.clone()) == 0:
+    if list(medias.clone()):
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f"Sorry, I didn't find any {media_type}.")
+            text=_(f"Sorry, I didn't find any {media_type}."))
         return
     for media in medias:
         if config.CLOUD_FILES_SAVING:
@@ -256,17 +304,18 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = [
         '/start - Start the bot',
         '/help - Show this help message',
+        '/language - Change the bot language',
         '/get <media_type> - Get the list of medias of a specific type',
     ]
     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text='\n'.join(command_list))
+                                   text=_('\n'.join(command_list)))
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Sorry, I didn't understand that command.")
+        text=_("Sorry, I didn't understand that command."))
 
 
 if __name__ == '__main__':
-    pass
+    print(_('Hello'))
