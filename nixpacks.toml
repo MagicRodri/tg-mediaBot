@@ -1,0 +1,12 @@
+# nixpacks config
+
+providers = [ "python" ]
+
+[phases.setup]
+nixPkgs = [ "...", "ffmpeg" ]
+
+[phases.build]
+cmds = [ "python -m pip install - requirements.txt" ]
+
+[start]
+cmd = "python src/main.py"
