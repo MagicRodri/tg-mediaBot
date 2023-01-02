@@ -1,8 +1,8 @@
 import pymongo
 
 
-def user_media_current_index(username: str,
-                             media_collection: pymongo.collection.Collection):
+def get_media_current_index(username: str,
+                            media_collection: pymongo.collection.Collection):
     """
     Get the current index of the media of the user.
     """
