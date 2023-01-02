@@ -1,5 +1,4 @@
 # nixpacks config
-
 providers = [ "python" ]
 
 [phases.setup]
