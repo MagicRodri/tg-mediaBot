@@ -1,4 +1,3 @@
-import dns
 import pymongo
 
 import config
@@ -11,3 +10,5 @@ audios = db.audios
 
 if __name__ == '__main__':
     print(db.list_collection_names())
+    for image in images.find():
+        print(image)

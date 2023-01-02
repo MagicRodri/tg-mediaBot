@@ -11,9 +11,10 @@ import cv2
 import numpy as np
 import pydub
 from cloudinary.uploader import upload
-from telegram import KeyboardButton, ReplyKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -45,11 +46,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     8. We do not sell your Telegram ID or media to anyone.
     """
 
-    keyboad_markup = ReplyKeyboardMarkup(
-        [[KeyboardButton('I agree')], [KeyboardButton('I do not agree')]],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
+    keyboad = [
+        [InlineKeyboardButton("I agree", callback_data="True")],
+        [InlineKeyboardButton("I do not agree", callback_data="False")],
+    ]
+    keyboad_markup = InlineKeyboardMarkup(keyboad)
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -59,34 +60,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def agreement(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle the user's agreement to the privacy policy.
+    """
 
-    if update.message.text == 'I agree':
+    query = update.callback_query
+    await query.answer()
+    if query.data == "True":
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="Thank you for agreeing to our privacy policy.")
-
-        user_count = users.count_documents(
-            {"username": update.message.from_user.username})
+        username = query.from_user.username
+        user_id = query.from_user.id
+        user_count = users.count_documents({
+            "username": username,
+            "user_id": user_id
+        })
         user_exists = bool(user_count)
         if not user_exists:
             current_time = datetime.datetime.utcnow().strftime(
                 "%Y-%m-%d %H:%M:%S")
             # no yapf: disable
             users.insert_one({
-                "username": update.message.from_user.username,
-                "user_id": update.message.from_user.id,
+                "username": username,
+                "user_id": user_id,
                 "date_created": datetime.datetime.fromisoformat(current_time)
             })
             # no yapf: enable
-    elif update.message.text == 'I do not agree':
+    elif query.data == "False":
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text="Sorry, you can't use this bot.")
-    else:
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text="Sorry, I didn't understand that.")
 
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Save a photo with a face in it."""
 
     # Get the photo
     image_file = await context.bot.get_file(update.message.photo[-1].file_id)
@@ -203,6 +210,44 @@ async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="I received an audio file and saved it.")
 
 
+async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Get the list of medias of a specific type.
+    """
+    username = update.message.from_user.username
+    if not username:
+        username = str(update.message.from_user.id)
+    try:
+        media_type = update.message.text.split(' ')[1]
+    except ValueError:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="You should specify the media type  after the command.")
+
+    if media_type.strip().lower() in ['photos', 'images']:
+        media_collection = images
+    elif media_type.strip().lower() == 'audios':
+        media_collection = audios
+    else:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Sorry, I don't know this media type.")
+
+    medias = media_collection.find({"sender": username}, {
+        "_id": False,
+        "cloud_path": True
+    })
+    if list(medias.clone()) == 0:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f"Sorry, I didn't find any {media_type}.")
+    for media in medias:
+        if config.CLOUD_FILES_SAVING:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"Cloud path: {media['cloud_path']}")
+
+
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -212,18 +257,20 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     application = ApplicationBuilder().token(config.TG_TOKEN).build()
 
-    start_handler = CommandHandler('start', start)
-    agreement_handler = MessageHandler(filters=filters.TEXT,
-                                       callback=agreement)
+    start_handler = CommandHandler(command='start', callback=start)
+    agreement_handler = CallbackQueryHandler(callback=agreement)
     photo_handler = MessageHandler(filters=filters.PHOTO, callback=photo)
     audio_handler = MessageHandler(filters=filters.AUDIO | filters.VOICE,
                                    callback=audio)
+    get_medias_handler = MessageHandler(filters=filters.Regex(r'^/get'),
+                                        callback=get_medias)
     unknown_handler = MessageHandler(filters=filters.COMMAND, callback=unknown)
 
     application.add_handler(start_handler)
     application.add_handler(agreement_handler)
     application.add_handler(photo_handler)
     application.add_handler(audio_handler)
+    application.add_handler(get_medias_handler)
     application.add_handler(unknown_handler)
 
     application.run_polling()
