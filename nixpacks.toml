@@ -1,5 +1,5 @@
 # nixpacks config
-providers = [ "python310" ]
+providers = [ "python" ]
 
 [phases.setup]
 nixPkgs = [ "...", "ffmpeg" ]
