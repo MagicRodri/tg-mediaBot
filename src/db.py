@@ -6,7 +6,7 @@ import config
 client = pymongo.MongoClient(config.MG_URI)
 db = client['telegram-media-bot']
 users = db.users
-photos = db.photos
+images = db.images
 audios = db.audios
 
 if __name__ == '__main__':
