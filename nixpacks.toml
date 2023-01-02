@@ -2,7 +2,8 @@
 providers = [ "python" ]
 
 [phases.setup]
-nixPkgs = [ "...", "ffmpeg","libsm6","libxext6","libxrender-dev" ]
+nixPkgs = [ "...", "ffmpeg"]
+aptPkgs = ["libsm6","libxext6","libxrender-dev" ]
 
 [start]
 cmd = "python src/main.py"
