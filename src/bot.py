@@ -289,7 +289,7 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "_id": False,
         "cloud_path": True
     })
-    if list(medias.clone()):
+    if not list(medias.clone()):
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_(f"Sorry, I didn't find any {media_type}."))
