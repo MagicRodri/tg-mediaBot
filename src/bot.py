@@ -32,7 +32,8 @@ def _(text):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     start_message = """Hello! I'm a bot that can:
-    - Save audio files in .wav format.
+    - Save audio files.
+    - Convert audio files to wav format with a sample rate of 16kHz.
     - Save photos with faces.
     - Return back your saved audio files and photos.
 
@@ -304,7 +305,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = [
         '/start - Start the bot',
         '/help - Show this help message',
-        '/language - Change the bot language',
+        '/language - Change the bot language (experimental)',
         '/get <media_type> - Get the list of medias of a specific type',
     ]
     await context.bot.send_message(chat_id=update.effective_chat.id,
@@ -312,9 +313,17 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=_("Sorry, I didn't understand that command."))
+
+    if update.message.text.startswith('/'):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=
+            _("Sorry, I didn't understand that command. Please refer to the /help command"
+              ))
+    else:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=_("Sorry, I didn't understand that message."))
 
 
 if __name__ == '__main__':

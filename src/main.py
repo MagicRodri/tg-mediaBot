@@ -33,7 +33,8 @@ def main():
                                    callback=audio)
     get_medias_handler = CommandHandler(command='get', callback=get_medias)
     help_handler = CommandHandler(command='help', callback=help)
-    unknown_handler = MessageHandler(filters=filters.COMMAND, callback=unknown)
+    unknown_handler = MessageHandler(filters=filters.COMMAND | filters.TEXT,
+                                     callback=unknown)
 
     application.add_handler(start_handler)
     application.add_handler(agreement_handler, group=0)
