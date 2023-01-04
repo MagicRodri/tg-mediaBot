@@ -1,3 +1,5 @@
+import logging
+
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
@@ -21,6 +23,11 @@ from config import TG_TOKEN
 
 
 def main():
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    log_date_format = '%Y-%m-%d %H:%M:%S'
+    logging.basicConfig(format=log_format,
+                        level=logging.INFO,
+                        datefmt=log_date_format)
     application = ApplicationBuilder().token(TG_TOKEN).build()
 
     start_handler = CommandHandler(command='start', callback=start)
