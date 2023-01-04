@@ -18,10 +18,6 @@ from translate import Translator
 from db import audios, images, users
 from utils import get_media_current_index
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO)
-
 translator = Translator(to_lang="en")
 
 
@@ -87,6 +83,7 @@ async def agreement(update: Update, context: ContextTypes.DEFAULT_TYPE):
         })
         user_exists = bool(user_count)
         if not user_exists:
+            logging.info("Adding a new user to the database")
             current_time = datetime.datetime.utcnow().strftime(
                 "%Y-%m-%d %H:%M:%S")
             # no yapf: disable
@@ -144,6 +141,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Save a photo with a face in it."""
 
     # Get the photo
+    logging.info("Getting the photo")
     image_file = await context.bot.get_file(update.message.photo[-1].file_id)
     img_bytes_array = await image_file.download_as_bytearray()
     img_array = np.asarray(img_bytes_array, dtype=np.uint8)
@@ -151,6 +149,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # face detection
+    logging.info("Detecting faces")
     CV_DATA_PATH = Path(cv2.__file__).parent / 'data'
     face_cascade = cv2.CascadeClassifier(
         str(CV_DATA_PATH / 'haarcascade_frontalface_default.xml'))
@@ -162,6 +161,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Check if a face was found
     if len(faces) > 0:
+        logging.info("Face detected")
         format = image_file.file_path.split('.')[-1]
         username = update.message.from_user.username
         if not username:
@@ -171,6 +171,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filename = f'photo_message_{current_photo_index}.{format}'
         # Save the photo
         if config.LOCAL_FILES_SAVING:
+            logging.info("Saving the photo locally")
             img_dir = config.BASE_DIR / 'images' / username
             img_dir.mkdir(parents=True, exist_ok=True)
             img_path = img_dir / filename
@@ -178,6 +179,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         response = None
         if config.CLOUD_FILES_SAVING:
+            logging.info("Saving the photo in the cloud")
             folder = f"telegram-media-bot/images/{username}"
             response = upload(
                 io.BytesIO(img_bytes_array),
@@ -186,6 +188,8 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 unique_filename=False,
                 use_filename=True,
             )
+
+        logging.info("Saving the photo in the database")
         current_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         # no yapf: disable
         images.insert_one({
@@ -200,6 +204,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id,
             text=_("I found a face and saved the image."))
     else:
+        logging.info("No face detected")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_("Sorry, I didn't find any face."))
@@ -208,6 +213,7 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Get the audio
+    logging.info("Getting the audio")
     if update.message.audio:
         audio_file = await context.bot.get_file(update.message.audio.file_id)
     elif update.message.voice:
@@ -225,6 +231,7 @@ async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     format = 'wav'
     filename = f"audio_message_{current_user_audio_index}.{format}"
     if config.LOCAL_FILES_SAVING:
+        logging.info("Saving the audio locally")
         audio_dir = config.BASE_DIR / 'audios' / username
         audio_dir.mkdir(parents=True, exist_ok=True)
         audio_path = audio_dir / filename
@@ -232,6 +239,7 @@ async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     response = None
     if config.CLOUD_FILES_SAVING:
+        logging.info("Saving the audio in the cloud")
         audio_file = NamedTemporaryFile(suffix=f'.{format}')
         audio.export(audio_file, format=format, bitrate='16k')
         folder = f"telegram-media-bot/audios/{username}"
@@ -244,6 +252,7 @@ async def audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             unique_filename=False,
             use_filename=True)
 
+    logging.info("Saving the audio in the database")
     current_time = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     # no yapf: disable
     audios.insert_one({
@@ -269,6 +278,7 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         media_type = context.args[0]
     except IndexError:
+        logging.warning("No media type specified")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_(
@@ -280,20 +290,25 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif media_type.strip().lower() == 'audios':
         media_collection = audios
     else:
+        logging.warning("Unknown media type")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_("Sorry, I don't know this media type."))
         return
 
+    logging.info("Getting the list of medias for the user.")
     medias = media_collection.find({"sender": username}, {
         "_id": False,
         "cloud_path": True
     })
     if list(medias.clone()):
+        logging.info("No medias found")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_(f"Sorry, I didn't find any {media_type}."))
         return
+
+    logging.info("Sending the list of medias to the user")
     for media in medias:
         if config.CLOUD_FILES_SAVING:
             await context.bot.send_message(
@@ -315,12 +330,14 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.message.text.startswith('/'):
+        logging.warning("Unknown command")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=
             _("Sorry, I didn't understand that command. Please refer to the /help command"
               ))
     else:
+        logging.warning("Unknown message")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=_("Sorry, I didn't understand that message."))
