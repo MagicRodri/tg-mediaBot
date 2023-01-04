@@ -301,7 +301,7 @@ async def get_medias(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "_id": False,
         "cloud_path": True
     })
-    if list(medias.clone()):
+    if not list(medias.clone()):
         logging.info("No medias found")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
